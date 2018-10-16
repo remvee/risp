@@ -55,8 +55,13 @@ fn initial_state() -> State {
     state
 }
 
-pub fn eval(input: &str) -> Result {
-    run(&parse::parse(&input), &initial_state())
+pub fn eval(input: &str) -> Option<Result> {
+    let mut result = None;
+    let state = initial_state();
+    for node in parse::parse(&input) {
+        result = Some(run(&node, &state));
+    }
+    result
 }
 
 #[cfg(test)]
@@ -65,7 +70,9 @@ mod tests {
 
     #[test]
     fn test_eval() {
-        assert_eq!(10, eval("(+ 10)"));
-        assert_eq!(20, eval("(+ 10 (- 5 2 3) 1 9)"));
+        assert_eq!(Some(10), eval("(+ 10)"));
+        assert_eq!(Some(20), eval("(+ 10 (- 5 2 3) 1 9)"));
+        assert_eq!(Some(1), eval("1"));
+        assert_eq!(Some(6), eval("1 (+ 2) (+ 1 2 3)"));
     }
 }

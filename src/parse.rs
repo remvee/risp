@@ -51,8 +51,34 @@ fn parse_form(input: &str, offset: usize) -> (Node, usize) {
     }
 }
 
-pub fn parse(input: &str) -> Node {
-    parse_form(input, 0).0
+pub fn parse(input: &str) -> Vec<Node> {
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut offset = 0;
+    loop {
+        let mut iter = input
+            .char_indices()
+            .skip(offset)
+            .skip_while(|(_, c)| c.is_whitespace());
+        let (i, c) = match iter.next() {
+            Some((i, c)) => (i, c),
+            None => return nodes,
+        };
+        if c == '(' {
+            let (node, j) = parse_form(input, i);
+            offset = j;
+            nodes.push(node);
+        } else if char::is_numeric(c) {
+            let (node, j) = parse_int(input, i);
+            offset = j;
+            nodes.push(node);
+        } else if char::is_whitespace(c) {
+            offset = i + 1;
+        } else {
+            let (node, j) = parse_identifier(input, i);
+            offset = j;
+            nodes.push(node);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -79,20 +105,20 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        assert_eq!(Node::Form(vec![Node::Integer(42)]), parse("(42)"));
+        assert_eq!(vec![Node::Form(vec![Node::Integer(42)])], parse("(42)"));
         assert_eq!(
-            Node::Form(vec![Node::Integer(42), Node::Integer(33)]),
+            vec![Node::Form(vec![Node::Integer(42), Node::Integer(33)])],
             parse("(42 33)")
         );
         assert_eq!(
-            Node::Form(vec![
+            vec![Node::Form(vec![
                 Node::Integer(42),
                 Node::Form(vec![Node::Integer(9), Node::Integer(33)])
-            ]),
+            ])],
             parse("(42 (9 33))")
         );
         assert_eq!(
-            Node::Form(vec![
+            vec![Node::Form(vec![
                 Node::Identifier("+".to_string()),
                 Node::Integer(42),
                 Node::Form(vec![
@@ -100,11 +126,11 @@ mod tests {
                     Node::Integer(9),
                     Node::Integer(33)
                 ])
-            ]),
+            ])],
             parse("(+ 42 (- 9 33))")
         );
         assert_eq!(
-            Node::Form(vec![
+            vec![Node::Form(vec![
                 Node::Identifier("def".to_string()),
                 Node::Identifier("inc".to_string()),
                 Node::Form(vec![Node::Identifier("x".to_string())]),
@@ -113,7 +139,7 @@ mod tests {
                     Node::Integer(1),
                     Node::Identifier("x".to_string())
                 ]),
-            ]),
+            ])],
             parse("(def inc (x) (+ 1 x))")
         );
     }
