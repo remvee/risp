@@ -1,11 +1,8 @@
-use std::io;
-//use std::io::Read;
 use std::iter::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 enum Node {
     Form(Vec<Node>),
-    String(String),
     Identifier(String),
     Integer(i64)
 }
@@ -82,47 +79,36 @@ fn test_parse_form() {
     );
 }
 
-fn parse(input : &str, offset : usize) -> (Node, usize) {
-    let input = input.trim();
-    let c = input.chars().next().unwrap();
-
-    if c == '(' {
-        parse_form(input, offset)
-    } else if char::is_numeric(c) {
-        parse_int(input, offset)
-    } else if c == '"' {
-        (Node::String(String::from(input)), 0)
+fn call(oper : &Node, x : i64, y : i64) -> i64 {
+    let identifier = match oper { Node::Identifier(v) => v, _ => "+" };
+    if identifier == "+" {
+        x + y
+    } else if identifier == "-" {
+        x - y
     } else {
-        (Node::Identifier(String::from(input)), 0)
+        x
     }
-
-    // match iter.next() {
-    //     Some(x) => {
-    //         println!("is digit: {:?}", char::is_numeric(x));
-    //     }
-    //     None => {
-    //         println!("no more input?");
-    //     }
-    // }
-    // let form = form.trim();
-
-    // if form.starts_with('(') {
-    //     Node::Form(vec![parse(&form[1 .. form.len() - 1])])
-    // } else if form.starts_with('"') {
-    //     Node::String(form.to_string())
-    // } else if starts_with_digit(form) {
-    //     Node::Integer(31415)
-    // } else {
-    //     Node::Identifier(form.to_string())
-    // }
 }
 
-fn main() -> io::Result<()> {
-    println!("Hello, world!");
-    // let mut code = String::new();
-    // io::stdin().read_to_string(&mut code)?;
-    let code = String::from("(+ 1123 (- 34 52))");
-    println!("DONE {:?}", parse(&code, 0));
+fn run(node : &Node) -> i64 {
+    match node {
+        Node::Form(nodes) => {
+            call(&nodes[0], run(&nodes[1]), run(&nodes[2]))
+        }
+        Node::Integer(n) => *n,
+        _ => 0
+    }
+}
 
-    Ok(())
+fn eval(input : &str) -> i64 {
+    let (node, _) = parse_form(&input, 0);
+    run(&node)
+}
+
+#[test]
+fn test_eval() {
+    assert_eq!(
+        13,
+        eval("(+ 10 (- 5 2))")
+    )
 }
