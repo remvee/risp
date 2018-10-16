@@ -1,14 +1,19 @@
 use parse;
 
-fn call(oper: &parse::Node, x: i64, y: i64) -> i64 {
+fn call(nodes : &Vec<parse::Node>) -> i64 {
+    let oper = &nodes[0];
     let identifier = match oper {
         parse::Node::Identifier(v) => v,
         _ => panic!("Call on none identifier: {:?}", oper),
     };
     if identifier == "+" {
-        x + y
+        let mut n : i64 = run(&nodes[1]);
+        for node in &nodes[2..] { n += run(node); }
+        n
     } else if identifier == "-" {
-        x - y
+        let mut n : i64 = run(&nodes[1]);
+        for node in &nodes[2..] { n -= run(node); }
+        n
     } else {
         panic!("Call on unknown identifier: {:?}", identifier)
     }
@@ -16,7 +21,7 @@ fn call(oper: &parse::Node, x: i64, y: i64) -> i64 {
 
 fn run(node: &parse::Node) -> i64 {
     match node {
-        parse::Node::Form(nodes) => call(&nodes[0], run(&nodes[1]), run(&nodes[2])),
+        parse::Node::Form(nodes) => call(&nodes),
         parse::Node::Integer(n) => *n,
         _ => panic!("Can not run: {:?}", node),
     }
@@ -32,6 +37,7 @@ mod tests {
 
     #[test]
     fn test_eval() {
-        assert_eq!(13, eval("(+ 10 (- 5 2))"))
+        assert_eq!(10, eval("(+ 10)"));
+        assert_eq!(20, eval("(+ 10 (- 5 2 3) 1 9)"));
     }
 }
