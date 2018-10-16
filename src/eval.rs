@@ -1,34 +1,62 @@
 use parse;
+use std::collections::HashMap;
 
-fn call(nodes : &Vec<parse::Node>) -> i64 {
+type Result = i64;
+
+struct State {
+    fns: HashMap<String, fn(&[parse::Node], &State) -> Result>,
+}
+
+fn call(nodes: &Vec<parse::Node>, state: &State) -> Result {
     let oper = &nodes[0];
     let identifier = match oper {
         parse::Node::Identifier(v) => v,
         _ => panic!("Call on none identifier: {:?}", oper),
     };
-    if identifier == "+" {
-        let mut n : i64 = run(&nodes[1]);
-        for node in &nodes[2..] { n += run(node); }
-        n
-    } else if identifier == "-" {
-        let mut n : i64 = run(&nodes[1]);
-        for node in &nodes[2..] { n -= run(node); }
-        n
-    } else {
-        panic!("Call on unknown identifier: {:?}", identifier)
-    }
+
+    let func = match state.fns.get(identifier) {
+        Some(f) => f,
+        None => panic!("No such function {:?}", identifier),
+    };
+
+    func(&nodes[1..], &state)
 }
 
-fn run(node: &parse::Node) -> i64 {
+fn run(node: &parse::Node, state: &State) -> Result {
     match node {
-        parse::Node::Form(nodes) => call(&nodes),
+        parse::Node::Form(nodes) => call(&nodes, state),
         parse::Node::Integer(n) => *n,
         _ => panic!("Can not run: {:?}", node),
     }
 }
 
-pub fn eval(input: &str) -> i64 {
-    run(&parse::parse(&input))
+fn fn_add(nodes: &[parse::Node], state: &State) -> Result {
+    let mut n: Result = run(&nodes[0], state);
+    for node in &nodes[1..] {
+        n += run(node, state);
+    }
+    n
+}
+
+fn fn_subtract(nodes: &[parse::Node], state: &State) -> Result {
+    let mut n: Result = run(&nodes[0], state);
+    for node in &nodes[1..] {
+        n -= run(node, state);
+    }
+    n
+}
+
+fn initial_state() -> State {
+    let mut state: State = State {
+        fns: HashMap::new(),
+    };
+    state.fns.insert("+".to_string(), fn_add);
+    state.fns.insert("-".to_string(), fn_subtract);
+    state
+}
+
+pub fn eval(input: &str) -> Result {
+    run(&parse::parse(&input), &initial_state())
 }
 
 #[cfg(test)]
