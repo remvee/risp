@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
 pub enum EvalError {
-    IdentifierExpected,
-    FormOrValueExpected,
-    UnknownFunction,
+    IdentifierExpected { at: usize },
+    FormOrValueExpected { at: usize },
+    UnknownFunction { at: usize, name: String },
     ParseError { err: parse::ParseError },
 }
 
@@ -19,13 +19,22 @@ struct State {
 fn call(nodes: &Vec<parse::Node>, state: &State) -> EvalResult {
     let oper = &nodes[0];
     let identifier = match oper {
-        parse::Node::Identifier(v) => v,
-        _ => return Err(EvalError::IdentifierExpected),
+        parse::Node::Identifier { payload, at: _ } => payload,
+        _ => {
+            return Err(EvalError::IdentifierExpected {
+                at: parse::at(oper),
+            })
+        }
     };
 
     let func = match state.fns.get(identifier) {
         Some(f) => f,
-        None => return Err(EvalError::UnknownFunction),
+        None => {
+            return Err(EvalError::UnknownFunction {
+                at: parse::at(oper),
+                name: identifier.to_string(),
+            })
+        }
     };
 
     func(&nodes[1..], &state)
@@ -33,9 +42,13 @@ fn call(nodes: &Vec<parse::Node>, state: &State) -> EvalResult {
 
 fn run(node: &parse::Node, state: &State) -> EvalResult {
     match node {
-        parse::Node::Form(nodes) => call(&nodes, state),
-        parse::Node::Integer(n) => Ok(*n),
-        _ => return Err(EvalError::FormOrValueExpected),
+        parse::Node::Form { payload, at: _ } => call(&payload, state),
+        parse::Node::Integer { payload, at: _ } => Ok(*payload),
+        _ => {
+            return Err(EvalError::FormOrValueExpected {
+                at: parse::at(node),
+            })
+        }
     }
 }
 
@@ -97,14 +110,20 @@ mod tests {
     #[test]
     fn test_eval_errors() {
         assert_eq!(
-            Err(EvalError::UnknownFunction),
+            Err(EvalError::UnknownFunction {
+                at: 1,
+                name: "not-a-function".to_string()
+            }),
             eval("(not-a-function 1 2)")
         );
-        assert_eq!(Err(EvalError::IdentifierExpected), eval("(1 2)"));
-        assert_eq!(Err(EvalError::FormOrValueExpected), eval("not-a-value"));
+        assert_eq!(Err(EvalError::IdentifierExpected { at: 1 }), eval("(1 2)"));
+        assert_eq!(
+            Err(EvalError::FormOrValueExpected { at: 0 }),
+            eval("not-a-value")
+        );
         assert_eq!(
             Err(EvalError::ParseError {
-                err: parse::ParseError::UnexpectedEndOfInput { at: 1 }
+                err: parse::ParseError::UnexpectedEndOfInput { at: 0 }
             }),
             eval("(")
         );
