@@ -7,6 +7,9 @@ mod parse;
 fn main() -> io::Result<()> {
     let mut code = String::new();
     io::stdin().read_to_string(&mut code)?;
-    println!("{}", eval::eval(&code).unwrap());
+    match eval::eval(&code) {
+        Ok(value) => println!("{}", value),
+        Err(why) => panic!("{:?}", why)
+    }
     Ok(())
 }
