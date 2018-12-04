@@ -5,11 +5,15 @@ pub enum Node {
     Form { payload: Vec<Node>, at: usize },
     Identifier { payload: String, at: usize },
     Integer { payload: i64, at: usize },
+    String { payload: String, at: usize },
 }
 
 pub fn at(node: &Node) -> usize {
     match node {
-        Node::Form { at, .. } | Node::Identifier { at, .. } | Node::Integer { at, .. } => *at,
+        Node::Form { at, .. }
+        | Node::Identifier { at, .. }
+        | Node::Integer { at, .. }
+        | Node::String { at, .. } => *at,
     }
 }
 
@@ -18,38 +22,20 @@ pub enum ParseError {
     UnexpectedEndOfInput { at: usize },
     FailedToParseInteger { at: usize },
     NoIdentifier { at: usize },
+    UnexpectedInput { at: usize },
+    UnbalancedParentheses { at: usize },
 }
 
 pub type ParseResult = Result<Vec<Node>, ParseError>;
 
 pub fn parse(input: &str) -> ParseResult {
-    let mut nodes: Vec<Node> = Vec::new();
-    let mut offset = 0;
-    loop {
-        let mut iter = input
-            .char_indices()
-            .skip(offset)
-            .skip_while(|(_, c)| c.is_whitespace());
-        let (i, c) = match iter.next() {
-            Some((i, c)) => (i, c),
-            None => return Ok(nodes),
-        };
-        if c == '(' {
-            let (node, j) = parse_form(input, i)?;
-            offset = j;
-            nodes.push(node);
-        } else if char::is_numeric(c) {
-            let (node, j) = parse_int(input, i)?;
-            offset = j;
-            nodes.push(node);
-        } else if char::is_whitespace(c) {
-            offset = i + 1;
-        } else {
-            let (node, j) = parse_identifier(input, i)?;
-            offset = j;
-            nodes.push(node);
-        }
-    }
+    return match parse_form(input, 0, true) {
+        Ok((node, ..)) => match node {
+            Node::Form { payload, .. } => Ok(payload),
+            _ => Err(ParseError::UnexpectedInput { at: at(&node) }),
+        },
+        Err(err) => Err(err),
+    };
 }
 
 type ParseInternalResult = Result<(Node, usize), ParseError>;
@@ -72,6 +58,21 @@ fn parse_int(input: &str, offset: usize) -> ParseInternalResult {
     }
 }
 
+fn parse_str(input: &str, offset: usize) -> ParseInternalResult {
+    let input: String = input
+        .chars()
+        .skip(offset + 1)
+        .take_while(|c| c != &'"')
+        .collect();
+    Ok((
+        Node::String {
+            payload: input.to_string(),
+            at: offset,
+        },
+        offset + input.len() + 2,
+    ))
+}
+
 fn parse_identifier(input: &str, offset: usize) -> ParseInternalResult {
     let input: String = input
         .chars()
@@ -91,29 +92,52 @@ fn parse_identifier(input: &str, offset: usize) -> ParseInternalResult {
     }
 }
 
-fn parse_form(input: &str, offset: usize) -> ParseInternalResult {
+fn parse_form(input: &str, offset: usize, outer: bool) -> ParseInternalResult {
     let mut nodes: Vec<Node> = Vec::new();
-    let mut i = offset + 1;
+    let mut i = offset;
     loop {
-        let mut iter = input.char_indices().skip(i);
+        let mut iter = input
+            .char_indices()
+            .skip(i)
+            .skip_while(|(_, c)| c.is_whitespace());
         let (j, c) = match iter.next() {
             Some((j, c)) => (j, c),
-            None => return Err(ParseError::UnexpectedEndOfInput { at: offset }),
+            None => {
+                if outer {
+                    return Ok((
+                        Node::Form {
+                            payload: nodes,
+                            at: offset,
+                        },
+                        i + 1,
+                    ));
+                } else {
+                    return Err(ParseError::UnexpectedEndOfInput { at: offset });
+                }
+            }
         };
         if c == ')' {
-            return Ok((
-                Node::Form {
-                    payload: nodes,
-                    at: offset,
-                },
-                j + 1,
-            ));
+            if outer {
+                return Err(ParseError::UnbalancedParentheses { at: j });
+            } else {
+                return Ok((
+                    Node::Form {
+                        payload: nodes,
+                        at: offset - 1,
+                    },
+                    j + 1,
+                ));
+            }
         } else if c == '(' {
-            let (node, k) = parse_form(input, j)?;
+            let (node, k) = parse_form(input, j + 1, false)?;
             i = k;
             nodes.push(node);
         } else if char::is_numeric(c) {
             let (node, k) = parse_int(input, j)?;
+            i = k;
+            nodes.push(node);
+        } else if c == '"' {
+            let (node, k) = parse_str(input, i + 1)?;
             i = k;
             nodes.push(node);
         } else if char::is_whitespace(c) {
@@ -147,6 +171,20 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_str() {
+        assert_eq!(
+            Ok((
+                Node::String {
+                    payload: "foo".to_string(),
+                    at: 0
+                },
+                5
+            )),
+            parse_str("\"foo\"", 0)
+        );
+    }
+
+    #[test]
     fn test_parse_identifier() {
         assert_eq!(
             Ok((
@@ -176,6 +214,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
+        assert_eq!(Ok(vec![Node::Integer { payload: 42, at: 0 }]), parse("42"));
         assert_eq!(
             Ok(vec![Node::Form {
                 payload: vec![Node::Integer { payload: 42, at: 1 }],
@@ -273,5 +312,7 @@ mod tests {
             }]),
             parse("(def inc (x) (+ 1 x))")
         );
+        assert_eq!(Err(ParseError::UnexpectedEndOfInput { at: 1 }), parse("("));
+        assert_eq!(Err(ParseError::UnbalancedParentheses { at: 0 }), parse(")"));
     }
 }
