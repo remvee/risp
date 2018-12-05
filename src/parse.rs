@@ -3,7 +3,7 @@ use std::iter::*;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Node {
     Form { payload: Vec<Node>, at: usize },
-    Identifier { payload: String, at: usize },
+    Symbol { payload: String, at: usize },
     Integer { payload: i64, at: usize },
     String { payload: String, at: usize },
 }
@@ -11,7 +11,7 @@ pub enum Node {
 pub fn at(node: &Node) -> usize {
     match node {
         Node::Form { at, .. }
-        | Node::Identifier { at, .. }
+        | Node::Symbol { at, .. }
         | Node::Integer { at, .. }
         | Node::String { at, .. } => *at,
     }
@@ -21,7 +21,7 @@ pub fn at(node: &Node) -> usize {
 pub enum ParseError {
     UnexpectedEndOfInput { at: usize },
     FailedToParseInteger { at: usize },
-    NoIdentifier { at: usize },
+    NoSymbol { at: usize },
     UnexpectedInput { at: usize },
     UnbalancedParentheses { at: usize },
 }
@@ -73,17 +73,17 @@ fn parse_str(input: &str, offset: usize) -> ParseInternalResult {
     ))
 }
 
-fn parse_identifier(input: &str, offset: usize) -> ParseInternalResult {
+fn parse_symbol(input: &str, offset: usize) -> ParseInternalResult {
     let input: String = input
         .chars()
         .skip(offset)
         .take_while(|c| !(c.is_whitespace() || c == &')'))
         .collect();
     if input.is_empty() {
-        Err(ParseError::NoIdentifier { at: offset })
+        Err(ParseError::NoSymbol { at: offset })
     } else {
         Ok((
-            Node::Identifier {
+            Node::Symbol {
                 payload: input.to_string(),
                 at: offset,
             },
@@ -143,7 +143,7 @@ fn parse_form(input: &str, offset: usize, outer: bool) -> ParseInternalResult {
         } else if char::is_whitespace(c) {
             i = j + 1;
         } else {
-            let (node, k) = parse_identifier(input, j)?;
+            let (node, k) = parse_symbol(input, j)?;
             i = k;
             nodes.push(node);
         }
@@ -185,30 +185,30 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_identifier() {
+    fn test_parse_symbol() {
         assert_eq!(
             Ok((
-                Node::Identifier {
+                Node::Symbol {
                     payload: "test".to_string(),
                     at: 0
                 },
                 4
             )),
-            parse_identifier("test", 0)
+            parse_symbol("test", 0)
         );
         assert_eq!(
             Ok((
-                Node::Identifier {
+                Node::Symbol {
                     payload: "+".to_string(),
                     at: 0
                 },
                 1
             )),
-            parse_identifier("+", 0)
+            parse_symbol("+", 0)
         );
         assert_eq!(
-            Err(ParseError::NoIdentifier { at: 1 }),
-            parse_identifier("f ", 1)
+            Err(ParseError::NoSymbol { at: 1 }),
+            parse_symbol("f ", 1)
         );
     }
 
@@ -251,14 +251,14 @@ mod tests {
         assert_eq!(
             Ok(vec![Node::Form {
                 payload: vec![
-                    Node::Identifier {
+                    Node::Symbol {
                         payload: "+".to_string(),
                         at: 1
                     },
                     Node::Integer { payload: 42, at: 3 },
                     Node::Form {
                         payload: vec![
-                            Node::Identifier {
+                            Node::Symbol {
                                 payload: "-".to_string(),
                                 at: 7
                             },
@@ -278,16 +278,16 @@ mod tests {
         assert_eq!(
             Ok(vec![Node::Form {
                 payload: vec![
-                    Node::Identifier {
+                    Node::Symbol {
                         payload: "def".to_string(),
                         at: 1
                     },
-                    Node::Identifier {
+                    Node::Symbol {
                         payload: "inc".to_string(),
                         at: 5
                     },
                     Node::Form {
-                        payload: vec![Node::Identifier {
+                        payload: vec![Node::Symbol {
                             payload: "x".to_string(),
                             at: 10
                         }],
@@ -295,12 +295,12 @@ mod tests {
                     },
                     Node::Form {
                         payload: vec![
-                            Node::Identifier {
+                            Node::Symbol {
                                 payload: "+".to_string(),
                                 at: 14
                             },
                             Node::Integer { payload: 1, at: 16 },
-                            Node::Identifier {
+                            Node::Symbol {
                                 payload: "x".to_string(),
                                 at: 18
                             }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
 pub enum EvalError {
-    IdentifierExpected { at: usize },
+    SymbolExpected { at: usize },
     FormOrValueExpected { at: usize },
     NotAnInteger { at: usize },
     UnknownFunction { at: usize, name: String },
@@ -29,21 +29,21 @@ fn call(nodes: &Vec<parse::Node>, state: &State) -> EvalResult {
     }
 
     let oper = &nodes[0];
-    let identifier = match oper {
-        parse::Node::Identifier { payload, at: _ } => payload,
+    let symbol_name = match oper {
+        parse::Node::Symbol { payload, at: _ } => payload,
         _ => {
-            return Err(EvalError::IdentifierExpected {
+            return Err(EvalError::SymbolExpected {
                 at: parse::at(oper),
             })
         }
     };
 
-    let func = match state.fns.get(identifier) {
+    let func = match state.fns.get(symbol_name) {
         Some(f) => f,
         None => {
             return Err(EvalError::UnknownFunction {
                 at: parse::at(oper),
-                name: identifier.to_string(),
+                name: symbol_name.to_string(),
             })
         }
     };
@@ -169,7 +169,7 @@ mod tests {
             }),
             eval("(not-a-function 1 2)")
         );
-        assert_eq!(Err(EvalError::IdentifierExpected { at: 1 }), eval("(1 2)"));
+        assert_eq!(Err(EvalError::SymbolExpected { at: 1 }), eval("(1 2)"));
         assert_eq!(
             Err(EvalError::FormOrValueExpected { at: 0 }),
             eval("not-a-value")
