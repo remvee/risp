@@ -1,6 +1,6 @@
 use std::iter::*;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum Node {
     Form { payload: Vec<Node>, at: usize },
     Symbol { payload: String, at: usize },
